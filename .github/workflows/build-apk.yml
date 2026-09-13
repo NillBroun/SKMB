@@ -72,29 +72,13 @@ jobs:
         run: |
           ROOT_DIR=$(pwd)
           REPO_NAME=$(basename $ROOT_DIR)
-          cd ../skmb_fresh
+          cd ../skmb_fresh/android
 
-          PLUGINS=("file_picker" "flutter_plugin_android_lifecycle" "jni" "jni_flutter" "share_plus" "shared_preferences_android" "url_launcher_android")
-          for p in "${PLUGINS[@]}"; do
-            mkdir -p "build/$p/intermediates/aar_metadata_check/release/checkReleaseAarMetadata"
-            touch "build/$p/intermediates/aar_metadata_check/release/checkReleaseAarMetadata/aar-metadata.properties"
-          done
-
-          cd android
           chmod +x gradlew
-          ./gradlew assembleRelease \
-            -x :file_picker:checkReleaseAarMetadata \
-            -x :flutter_plugin_android_lifecycle:checkReleaseAarMetadata \
-            -x :jni:checkReleaseAarMetadata \
-            -x :jni_flutter:checkReleaseAarMetadata \
-            -x :share_plus:checkReleaseAarMetadata \
-            -x :shared_preferences_android:checkReleaseAarMetadata \
-            -x :url_launcher_android:checkReleaseAarMetadata \
-            -x checkReleaseAarMetadata \
-            --no-daemon
+          ./gradlew assembleRelease -x checkReleaseAarMetadata --no-daemon
 
-          mkdir -p ../../$REPO_NAME/build_output/
-          find . -name "*.apk" -exec cp {} ../../$REPO_NAME/build_output/app-release.apk \;
+          mkdir -p ../../../$REPO_NAME/build_output/
+          find .. -name "*.apk" -exec cp {} ../../../$REPO_NAME/build_output/app-release.apk \;
 
       - name: Upload Release APK
         uses: actions/upload-artifact@v4
