@@ -1,1 +1,104 @@
+name: Build SKMB APK
+
+on:
+  push:
+    branches: [ "main", "master" ]
+  workflow_dispatch:
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout Repository
+        uses: actions/checkout@v4
+
+      - name: Set up Java 17
+        uses: actions/setup-java@v3
+        with:
+          distribution: 'zulu'
+          java-version: '17'
+
+      - name: Set up Flutter
+        uses: subosito/flutter-action@v2
+        with:
+          channel: 'stable'
+
+      - name: Create Clean Android Workspace
+        run: |
+          ROOT_DIR=$(pwd)
+          REPO_NAME=$(basename $ROOT_DIR)
+          cd ..
+          flutter create -t app --org com.ahm.skmb skmb_fresh
+          cd skmb_fresh
+          cp -r ../$REPO_NAME/lib/* ./lib/
+          cp ../$REPO_NAME/pubspec.yaml ./pubspec.yaml
+          if [ -f "../$REPO_NAME/app_icon.png" ]; then
+            cp ../$REPO_NAME/app_icon.png ./app_icon.png
+          fi
+
+      - name: Configure Main App
+        run: |
+          cd ../skmb_fresh
+
+          sed -i 's/compileSdk = flutter.compileSdkVersion/compileSdk = 36/g' android/app/build.gradle.kts
+          sed -i 's/minSdk = flutter.minSdkVersion/minSdk = 24/g' android/app/build.gradle.kts
+          sed -i 's/targetSdk = flutter.targetSdkVersion/targetSdk = 34/g' android/app/build.gradle.kts
+
+          python3 -c "
+          p = 'android/app/build.gradle.kts'
+          with open(p, 'r') as f:
+              c = f.read()
+          c = c.replace('buildTypes {', 'buildTypes {\n        getByName(\"release\") {\n            signingConfig = signingConfigs.getByName(\"debug\")\n        }')
+          with open(p, 'w') as f:
+              f.write(c)
+          "
+
+          echo "android.suppressUnsupportedCompileSdk=36" >> android/gradle.properties
+
+          sed -i 's/android:label=".*"/android:label="SKMB"/g' android/app/src/main/AndroidManifest.xml
+          sed -i 's/<application/<uses-permission android:name="android.permission.READ_EXTERNAL_STORAGE" android:maxSdkVersion="32"\/>\n    <uses-permission android:name="android.permission.WRITE_EXTERNAL_STORAGE" android:maxSdkVersion="29"\/>\n    <application/g' android/app/src/main/AndroidManifest.xml
+
+      - name: Prepare Packages & Build Assets
+        run: |
+          cd ../skmb_fresh
+          flutter pub get
+          if [ -f "app_icon.png" ]; then
+            dart run flutter_launcher_icons || true
+          fi
+          flutter build bundle
+
+      - name: Compile Universal APK
+        run: |
+          ROOT_DIR=$(pwd)
+          REPO_NAME=$(basename $ROOT_DIR)
+          cd ../skmb_fresh
+
+          PLUGINS=("file_picker" "flutter_plugin_android_lifecycle" "jni" "jni_flutter" "share_plus" "shared_preferences_android" "url_launcher_android")
+          for p in "${PLUGINS[@]}"; do
+            mkdir -p "build/$p/intermediates/aar_metadata_check/release/checkReleaseAarMetadata"
+            touch "build/$p/intermediates/aar_metadata_check/release/checkReleaseAarMetadata/aar-metadata.properties"
+          done
+
+          cd android
+          chmod +x gradlew
+          ./gradlew assembleRelease \
+            -x :file_picker:checkReleaseAarMetadata \
+            -x :flutter_plugin_android_lifecycle:checkReleaseAarMetadata \
+            -x :jni:checkReleaseAarMetadata \
+            -x :jni_flutter:checkReleaseAarMetadata \
+            -x :share_plus:checkReleaseAarMetadata \
+            -x :shared_preferences_android:checkReleaseAarMetadata \
+            -x :url_launcher_android:checkReleaseAarMetadata \
+            -x checkReleaseAarMetadata \
+            --no-daemon
+
+          mkdir -p ../../$REPO_NAME/build_output/
+          find . -name "*.apk" -exec cp {} ../../$REPO_NAME/build_output/app-release.apk \;
+
+      - name: Upload Release APK
+        uses: actions/upload-artifact@v4
+        with:
+          name: SKMB-Universal-Release-APK
+          path: build_output/app-release.apk
 
