@@ -14,7 +14,7 @@ jobs:
         uses: actions/checkout@v4
 
       - name: Set up Java 17
-        uses: actions/setup-java@v3
+        uses: actions/setup-java@v4
         with:
           distribution: 'zulu'
           java-version: '17'
@@ -70,18 +70,12 @@ jobs:
 
       - name: Compile Universal APK
         run: |
-          ROOT_DIR=$(pwd)
-          REPO_NAME=$(basename $ROOT_DIR)
           cd ../skmb_fresh/android
-
           chmod +x gradlew
           ./gradlew assembleRelease -x checkReleaseAarMetadata --no-daemon
-
-          mkdir -p ../../../$REPO_NAME/build_output/
-          find .. -name "*.apk" -exec cp {} ../../../$REPO_NAME/build_output/app-release.apk \;
 
       - name: Upload Release APK
         uses: actions/upload-artifact@v4
         with:
           name: SKMB-Universal-Release-APK
-          path: build_output/app-release.apk
+          path: /home/runner/work/**/app-release.apk
